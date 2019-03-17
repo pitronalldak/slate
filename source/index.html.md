@@ -3,237 +3,441 @@ title: API Reference
 
 language_tabs: # must be one of https://git.io/vQNgJ
   - shell
-  - ruby
+  - java
   - python
+  - csharp
   - javascript
-
-toc_footers:
-  - <a href='#'>Sign Up for a Developer Key</a>
-  - <a href='https://github.com/lord/slate'>Documentation Powered by Slate</a>
-
-includes:
-  - errors
+  - swift
 
 search: true
 ---
 
 # Introduction
 
-Welcome to the Kittn API! You can use our API to access Kittn API endpoints, which can get information on various cats, kittens, and breeds in our database.
+Needs introduction
 
-We have language bindings in Shell, Ruby, Python, and JavaScript! You can view code examples in the dark area to the right, and you can switch the programming language of the examples with the tabs in the top right.
+# Request
 
-This example API documentation page was created with [Slate](https://github.com/lord/slate). Feel free to edit it and use it as a base for your own API's documentation.
+## Creating request
 
-# Authentication
+To initiate request Relaying Party (RP) sends request to the Auth eID server and receives request ID that would be needed to retrieve request result or cancelling request from the RP side.
 
-> To authorize, use this code:
+### HTTP Request
 
-```ruby
-require 'kittn'
+`POST https://api.autheid.com/v1/request`
 
-api = Kittn::APIClient.authorize!('meowmeowmeow')
+### gRPC Request
+
+`rpc Create(CreateRequest) returns (CreateResponse);`
+
+> Example request:
+
+```shell
+$ curl --request POST https://api.staging.autheid.com/v1/requests \
+    --Header "Content-Type: application/json" \
+    --Header 'Authorization: Bearer Pj+GIg2/l7ZKmicZi37+1giqKJ1WH3Vt8vSSxCuvPkKD' \
+    --data '{"email":"test@example.com","title":"Test","type":"KYC"}'
+```
+
+```java
+  Rp.CreateRequest request = Rp.CreateRequest.newBuilder()
+          .setTitle("Test").setEmail("test@example.com").setType(Rp.RequestType.KYC).build();
+      Rp.CreateResponse response = blockingStub.create(request);
 ```
 
 ```python
-import kittn
+  import grpc
+  import rp_pb2
+  import rp_pb2_grpc
 
-api = kittn.authorize('meowmeowmeow')
+  def send_request(stub):
+    create_request = rp_pb2.CreateRequest()
+    create_request.title = "Test"
+    create_request.email = email
+    create_request.type = rp_pb2.KYC
+    create_request.kyc.files_format = rp_pb2.EMBEDDED
+    create_response = stub.Create(create_request, metadata=metadata)
 ```
 
-```shell
-# With shell, you can just pass the correct header with each request
-curl "api_endpoint_here"
-  -H "Authorization: meowmeowmeow"
+```csharp
+  channel channel = new Channel("api.staging.autheid.com", channelCredentials);
+  var client = new Requests.RequestsClient(channel);
+  var request = new CreateRequest();
+  var reply = client.Create(request);
 ```
 
-```javascript
-const kittn = require('kittn');
+```swift
+  let url2 = URL(string: baseUrl + "/requests")!
+  var request = URLRequest(url: url2)
+  request.setValue("Bearer " + apiKey, forHTTPHeaderField: "Authorization")
+  request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+  request.httpMethod = "POST"
+  request.httpBody = jsonData
 
-let api = kittn.authorize('meowmeowmeow');
-```
-
-> Make sure to replace `meowmeowmeow` with your API key.
-
-Kittn uses API keys to allow access to the API. You can register a new Kittn API key at our [developer portal](http://example.com/developers).
-
-Kittn expects for the API key to be included in all API requests to the server in a header that looks like the following:
-
-`Authorization: meowmeowmeow`
-
-<aside class="notice">
-You must replace <code>meowmeowmeow</code> with your personal API key.
-</aside>
-
-# Kittens
-
-## Get All Kittens
-
-```ruby
-require 'kittn'
-
-api = Kittn::APIClient.authorize!('meowmeowmeow')
-api.kittens.get
-```
-
-```python
-import kittn
-
-api = kittn.authorize('meowmeowmeow')
-api.kittens.get()
-```
-
-```shell
-curl "http://example.com/api/kittens"
-  -H "Authorization: meowmeowmeow"
-```
-
-```javascript
-const kittn = require('kittn');
-
-let api = kittn.authorize('meowmeowmeow');
-let kittens = api.kittens.get();
-```
-
-> The above command returns JSON structured like this:
-
-```json
-[
-  {
-    "id": 1,
-    "name": "Fluffums",
-    "breed": "calico",
-    "fluffiness": 6,
-    "cuteness": 7
-  },
-  {
-    "id": 2,
-    "name": "Max",
-    "breed": "unknown",
-    "fluffiness": 5,
-    "cuteness": 10
+  let task = URLSession.shared.dataTask(with: request) { data, response, error in
+    guard let data = data, error == nil else {
+        print(error?.localizedDescription ?? "No data")
+        return
+    }
+    let responseJSON = try? JSONSerialization.jsonObject(with: data, options: [])
   }
-]
 ```
 
-This endpoint retrieves all kittens.
+### Body Parameters
 
-### HTTP Request
+|Name|Type|Description|Notes|
+|---|---|---|---|
+|`type`|Enum|Request type: `AUTHENTICATION`, `SIGNATURE`, `IDENTIFICATION` or `KYC`, more details below|Required|
+|`email`|String|User identification. Users might add and remove emails so this might change for same user. Use `unique_user_id` from the request response to reliable detect same accounts|Required|
+|`timeout_seconds`|Integer|Duration of time in seconds while user could sign request. Valid range is [10..600]. Default is 60|Optional|
+|`title`|String|Request title. Will be visible in the app when user is prompted to sign request. Maximum is 100 symbols and one line|Required|
+|`description`|String|Request description. Will be visible in the app when user is prompted to sign request. Maximum is 255 symbols and up to three lines|Optional|
+|`authenticate`|Object|Optional data for authentication request. More details below|Optional|
+|`signature`|Object|Optional data for signature request. More details below|Optional|
+|`kyc`|Object|Optional data for KYC request. More details below|Optional|
+|`idempotent_key`|String|Unique key generated by RP to detect duplicated requests in case of problems with networking connection. If set it's safe to send multiple request in case of transitional network errors. Only one request will be sent to the user|Optional|
 
-`GET http://example.com/api/kittens`
+### Response
 
-### Query Parameters
-
-Parameter | Default | Description
---------- | ------- | -----------
-include_cats | false | If set to true, the result will also include cats.
-available | true | If set to false, the result will include kittens that have already been adopted.
-
-<aside class="success">
-Remember — a happy kitten is an authenticated kitten!
-</aside>
-
-## Get a Specific Kitten
-
-```ruby
-require 'kittn'
-
-api = Kittn::APIClient.authorize!('meowmeowmeow')
-api.kittens.get(2)
-```
-
-```python
-import kittn
-
-api = kittn.authorize('meowmeowmeow')
-api.kittens.get(2)
-```
+> Example response:
 
 ```shell
-curl "http://example.com/api/kittens/2"
-  -H "Authorization: meowmeowmeow"
-```
-
-```javascript
-const kittn = require('kittn');
-
-let api = kittn.authorize('meowmeowmeow');
-let max = api.kittens.get(2);
-```
-
-> The above command returns JSON structured like this:
-
-```json
 {
-  "id": 2,
-  "name": "Max",
-  "breed": "unknown",
-  "fluffiness": 5,
-  "cuteness": 10
+  "success": true,
+  "request_id": "JHgBYyLjUsJkKktsclwkMfkcv8MRgLkrubwzHBdnIJ4c",
+  "timestamp": 1552650262
 }
 ```
 
-This endpoint retrieves a specific kitten.
+|Name|Type|Description|Notes|
+|---|---|---|---|
+|`success`|Boolean|Boolean value to make sure request was successfully created|
+|`request_id`|String|Unique request identificator|
+|`timestamp`|Integer|Timestamp in seconds since Unix epoch (1 January 1970 UTC)|
 
-<aside class="warning">Inside HTML code blocks like this one, you can't use Markdown, so use <code>&lt;code&gt;</code> blocks to denote code.</aside>
+## Retrieving request result
+
+Request result will be available using this API call:
 
 ### HTTP Request
 
-`GET http://example.com/kittens/<ID>`
+`GET https://api.autheid.com/v1/request/{requestId}`
 
-### URL Parameters
+### gRPC Request
 
-Parameter | Description
---------- | -----------
-ID | The ID of the kitten to retrieve
+`rpc GetResult(GetResultRequest) returns (GetResultResponse);`
 
-## Delete a Specific Kitten
+This methods is blocking and result would be sent when request status is determined (so it might block for up to `timeout_seconds` period). If non-blocking method is preferred please poll request status first (see below).
 
-```ruby
-require 'kittn'
+### Response
 
-api = Kittn::APIClient.authorize!('meowmeowmeow')
-api.kittens.delete(2)
-```
+|Name|Type|Description|Notes|
+|---|---|---|---|
+|`success`|Boolean|Indicates that request result was retreived succefully (this is different from the request status itself)|
+|`status`|String|Unique request identificator|
+|`status_code`|Integer|Timestamp in seconds since Unix epoch (1 January 1970 UTC)|
+|`device_id`|String|Unique installation ID of the Auth eID app used to sign request if request was signed succesfully|
+|`device_name`|String|Model of the mobile device used to sign request if request was signed succesfully|
+|`email`|String|Email address used creating request|
+|`unique_user_id`|String|Unique key to identify account that is persistent between accounts restores and emails adding/removing|
+|`idempotent_key`|String|Idempotent key used to create request|
+|`authentication`|Object|Authentication details if request succeed. See below.|
+|`signature`|Object|Signature details if request succeed. See below.|
+|`identification`|Object|Identification details if request succeed. See below.|
+|`kyc`|Object|KYC details if request succeed. See below.|
 
-```python
-import kittn
+### Statuses
 
-api = kittn.authorize('meowmeowmeow')
-api.kittens.delete(2)
-```
+|Name|Code|Description|
+|---|---|---|
+|`SUCCESS`|10000|Successful request result. User have signed request|
+|`NOT_READY`|20001|Request is not ready yet. This status is used only with request status polling API|
+|`TIMEOUT`|20002|Request is timed out before user signed it. This might also happen when account is not known to Auth eID|
+|`RP_CANCELLED`|20003|Request was cancelled by RP using cancel API call|
+|`USER_CANCELLED`|20004|User have cancelled request from mobile app|
+|`ACCOUNT_NOT_VERIFIED`|20005|User have signed request but his account is not verified yet or passport expired. RP might limit `SIGNATURE` and `AUTHENTICATION` requests to verified accounts only. For `IDENTIFICATION` and `KYC` requests user must have verified account|
+
+## Retrieving request status
+
+### HTTP Request
+
+`GET https://api.autheid.com/v1/request/{requestId}`
+
+### gRPC Request
+
+`rpc GetResult(GetResultRequest) returns (GetResultResponse);`
+
+### Response
+
+|Name|Type|Description|Notes|
+|---|---|---|---|
+|`success`|Boolean|Indicates that the requesting status succeed (this is different from the request status itself)|
+|`status`|Enum|Request status. See above|
+|`status_code`|Integer|Request status as number|
+
+## Cancelling request
+
+### HTTP Request
+
+`POST https://api.autheid.com/v1/request/{requestId}/cancel`
+
+### gRPC Request
+
+`rpc Cancel(CancelRequest) returns (CancelResponse);`
+
+#Errors
+
+If any REST API call failed for some reasons this error message returned instead:
+
+|Name|Type|Description|Notes|
+|---|---|---|---|
+|`error`|Enum|Error code (subset of gRPC status codes). See below|
+|`error_code`|Integer|Error code as number|
+|`message`|String|Textual description of the error|
+
+Error codes:
+
+|Name|Code|Description|
+|---|---|---|
+|`INVALID_ARGUMENT`|3|Invalid input parameters. Request must not be resend before fixing the problem|
+|`NOT_FOUND`|5|Requested item was not found (unknown request ID, file not found etc)|
+|`PERMISSION_DENIED`|7|RP is known but has no access to this resource|
+|`FAILED_PRECONDITION`|9|There might be a problem with RP account|
+|`UNAUTHENTICATED`|16|RP is not known|
+
+For gRPC API equivalent status codes used instead.
+
+#Authorization
+
+Most end-points require RP authorization. Auth eID server uses token authorization for RP authorization. RP must set own API key in the `Authorization` header (HTTP request's header for the REST API or request's metadata for the gRPC API). API keys will be available in the RP [client's portal](https://autheid.com/api-keys) after registration. With test environment test API key could be used instead.
+
+#Request types
+
+## Authentication
+
+### Body Parameters
+
+> Example response:
 
 ```shell
-curl "http://example.com/api/kittens/2"
-  -X DELETE
-  -H "Authorization: meowmeowmeow"
-```
-
-```javascript
-const kittn = require('kittn');
-
-let api = kittn.authorize('meowmeowmeow');
-let max = api.kittens.delete(2);
-```
-
-> The above command returns JSON structured like this:
-
-```json
 {
-  "id": 2,
-  "deleted" : ":("
+  "success": true,
+  "status": "SUCCESS",
+  "status_code": 10000,
+  "request_id": "lgayNDC_tyUPgf9GuTfjNl6kbwCrUk6e5sZUaU4Sqksu",
+  "device_id": "Awiuhl1V7yqmZUDM5SMlO1YQwbV+VN8bBKzQ/5oDZtQh",
+  "device_name": "iPhone 7",
+  "email": "test@example.com",
+  "unique_user_id": "oava51cj",
+  "authentication": {
+    "jwt": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE1NTI3NDkwMzgsImlzcyI6ImF1dGhlaWQuY29tIiwic3ViIjoidGVzdEBleGFtcGxlLmNvbSJ9.CMc1DZe9IxVf1vjbrhSM14hnGL_oL-HzNPxYzp-MsscP5BK2mK4ZbFGDBYXHi6e2h0J1I6Lkutl5NnjyvCR6TMZ7G-heFMwCZ4J0XDpwnVc4PRtbOQWQ1bJT_CIqmWjTEjwCIrh3IQIJ7uLgs4b_sNre5x2AGTr-rH9HF5rdJw_ArsoeGEAlUGprJeTGV_IrZFsKKj4MUpOTtZU8I9UJu-lNcobo1IQ0B0cPgrJv7DdEdiZ5h1kMPfU0eP9hxsLxGtS-Urbcm49yQwB1xOomzYRKFGuZ9lKYFEfyfIYps0fRVsVKmhm6KmJG4irv0eWfNqtDT6Hn1fQ0iJSWKBhqUA",
+    "is_verified": true
+  }
 }
 ```
 
-This endpoint deletes a specific kitten.
+|Name|Type|Description|Notes|
+|---|---|---|---|
+|`verified_only`|Boolean|If set, only verified users will be able authenticate himself. Default is false|Optional|
 
-### HTTP Request
+### Response
 
-`DELETE http://example.com/kittens/<ID>`
+|Name|Type|Description|Notes|
+|---|---|---|---|
+|`jwt`|String|JWT token for the user's account signed by Auth eID|Required|
+|`is_verified`|Boolean|Shows if account is verified or not|Required|
 
-### URL Parameters
+## Signature
 
-Parameter | Description
---------- | -----------
-ID | The ID of the kitten to delete
+User signs requests on mobile app using secured private key. Auth eID verifies that the signature is valid and that account is active.
 
+### Body Parameters
+
+> Example response:
+
+```shell
+{
+  "success": true,
+  "status": "SUCCESS",
+  "status_code": 10000,
+  "request_id": "bZGRPCgF0D71x-49DkjzOzyXdRTGyZ0w_OSkqWcT5fTq",
+  "device_id": "Awiuhl1V7yqmZUDM5SMlO1YQwbV+VN8bBKzQ/5oDZtQh",
+  "device_name": "iPhone 7",
+  "email": "test@example.com",
+  "unique_user_id": "oava51cj",
+  "signature": {
+    "signature_data": "eyJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJycE5hbWUiOiJBdXRoIGVJRCBUZXN0IiwidGl0bGUiOiJUZXN0IiwiZGVzY3JpcHRpb24iOiIiLCJ0aW1lc3RhbXAiOjE1NTI3NDkyNDAsInRpbWVvdXRTZWNvbmRzIjowLCJyYVB1YktleSI6IiIsImludmlzaWJsZURhdGEiOiIifQ==",
+    "sign": "d0eIau0SCEEDtodxfo7V0apOfSXUw1t9PSZWfExd06+473JWp/ltC19l5r2V7BwBzZSlhgi/DSx75ZbB1jir8A==",
+    "user_pub_key": "AzDVmcfusBJ8HLTthxNZquHrwnbDAU/nxvc9zG6/hyZH",
+    "is_verified": true
+  }
+}
+```
+
+|Name|Type|Description|Notes|
+|---|---|---|---|
+|`serialization`|Enum|Signed data format. Available formats are `SERIALIZATION_JSON` and `SERIALIZATION_PROTOBUF`. Default is `SERIALIZATION_JSON`|Optional|
+|`invisible_data`|Binary|Invisible data that will be copied as-is in the signature response|Optional|
+|`verified_only`|Boolean|If set, only verified users will be able sign request. Default is false|Optional|
+
+### Response
+
+|Name|Type|Description|Notes|
+|---|---|---|---|
+|`serialization`|Enum|Signed data format. See above.|Required|
+|`signature_data`|Binary|Binary data signed by the user|Required|
+|`sign`|Binary|Digital signature by user's private key|Required|
+|`user_pub_key`|User's public key|Required|
+|`is_verified`|Boolean|Shows if account is verified or not|Required|
+
+## Identification
+
+### Response
+
+> Example response:
+
+```shell
+{
+  "success": true,
+  "status": "SUCCESS",
+  "status_code": 10000,
+  "request_id": "k0LeFXdNwO_hTR7GGmh7BGTA1Usf2V7co4pXwUEAEIr2",
+  "device_id": "Awiuhl1V7yqmZUDM5SMlO1YQwbV+VN8bBKzQ/5oDZtQh",
+  "device_name": "iPhone 7",
+  "email": "test@example.com",
+  "unique_user_id": "oava51cj",
+  "identification": {
+    "first_name": "TEST",
+    "last_name": "SPECIMEN",
+    "gender": "M",
+    "date_of_birth": "1980-01-01",
+    "nationality": "SWE",
+    "personal_number": "98765432",
+    "residency_country": "SWE",
+    "residency_city": "Malmo",
+    "residency_postcode": "211 25",
+    "residency_address": "Ostergatan 21",
+    "user_pub_key": "QXpEVm1jZnVzQko4SExUdGh4TlpxdUhyd25iREFVL254dmM5ekc2L2h5Wkg="
+  }
+}
+```
+
+|Name|Type|Description|Notes|
+|---|---|---|---|
+|`first_name`|String|User's first name|Requied|
+|`last_name`|String|User's last name|Requied|
+|`gender`|String|could be "M"/"F" or empty if not set in the passport|Optional|
+|`date_of_birth`|String|Date of birth in ISO 8601 format (ie 2018-12-31)|Requied|
+|`nationality`|String|Country of the nationality (ISO 3166-1 alpha-3)|Requied|
+|`personal_number`|String|Personal number from the passport if available|Optional|
+|`residency_country`|String|Residency country (ISO 3166-1 alpha-3 format)|Requied|
+|`residency_city`|String|Residency city in (ISO 3166-1 alpha-3 format)|Requied|
+|`residency_postcode`|String|Residency postcode|Requied|
+|`residency_address`|String|Residency address|Requied|
+|`residency_address2`|String|Residency address line 2|Optional|
+
+
+# Know-Your-Customer (KYC)
+
+### Body Parameters
+
+|Name|Type|Description|Notes|
+|---|---|---|---|
+|`files_format`|Enum|How additional KYC documents will be available. `DOWNLOAD_LINK` - as download link (default), `EMBEDDED` - as binary field|Optional|
+
+### Response
+
+> Example response:
+
+```shell
+{
+  "success": true,
+  "status": "SUCCESS",
+  "status_code": 10000,
+  "request_id": "URI4TsaRVCvzJH1oUBotbKNUiRQarZs7JMRWw33GT-Af",
+  "device_id": "Awiuhl1V7yqmZUDM5SMlO1YQwbV+VN8bBKzQ/5oDZtQh",
+  "device_name": "iPhone 7",
+  "email": "test@example.com",
+  "unique_user_id": "oava51cj",
+  "kyc": {
+    "identification": {
+      "first_name": "TEST",
+      "last_name": "SPECIMEN",
+      "gender": "M",
+      "date_of_birth": "1980-01-01",
+      "nationality": "SWE",
+      "personal_number": "98765432",
+      "residency_country": "SWE",
+      "residency_city": "Malmo",
+      "residency_postcode": "211 25",
+      "residency_address": "Ostergatan 21",
+      "user_pub_key": "QXpEVm1jZnVzQko4SExUdGh4TlpxdUhyd25iREFVL254dmM5ekc2L2h5Wkg="
+    },
+    "passport_issuing_state": "SWE",
+    "passport_number": "111222333",
+    "passport_expiration": "2020-01-01",
+    "screening_EU": "NO_MATCH_FOUND",
+    "screening_UN": "NO_MATCH_FOUND",
+    "screening_PEP": "NO_MATCH_FOUND",
+    "phone_number": "+46 1234567890",
+    "kyc_pdf": {
+      "download_link": "https://api.staging.autheid.com/v1/requests/URI4TsaRVCvzJH1oUBotbKNUiRQarZs7JMRWw33GT-Af/files/kyc.pdf"
+    },
+    "residency_proof_pdf": {
+      "download_link": "https://api.staging.autheid.com/v1/requests/URI4TsaRVCvzJH1oUBotbKNUiRQarZs7JMRWw33GT-Af/files/residency.pdf"
+    }
+  }
+}
+```
+
+|Name|Type|Description|Notes|
+|---|---|---|---|
+|`identification`|Object|Identification information same as in identification response. See above|Required|
+|`passport_issuing_state`|String|Country that issues passport (in ISO 3166-1 alpha-3 format)|Required|
+|`passport_number`|String|Passport's number|Required|
+|`passport_expiration`|String|Passport's expiration date in ISO 8601 format (ie 2018-12-31)|Required|
+|`screening_EU`|Enum|Screening result for the EU sanction's list. Possible values `MATCH_FOUND` and `NO_MATCH_FOUND`|Required|
+|`screening_UN`|Enum|Same as above but for the UN sanction's list|Required|
+|`screening_PEP`|Enum|Same as above but for the politically exposed persons (PEP) list|Required|
+|`screening_EU_info`|String|Human readable screening result information if match found in the EU sanction's list|Optional|
+|`screening_UN_info`|String|Same as above but for UN sanction's list|Optional|
+|`screening_PEP_info`|String|Same as above but for PEP list|Optional|
+|`phone_number`|String|Verified client's phone number|Required|
+|`kyc_pdf`|Object|KYC PDF document. See below|Required|
+|`residency_proof_pdf`|Object|Same as above but with residency proof details|Required|
+
+Files information:
+
+|Name|Type|Description|Notes|
+|---|---|---|---|
+|`download_link`|String|Link where PDF document could be downloaded. Please note that this request also requires RP authorization|Optional|
+|`embedded`|Binary|Embedded PDF document itself|Optional|
+
+There must be one and only one field set depending on KYC request type. By default PDF files will be available as URLs.
+
+# Production environment
+
+Server: `api.autheid.com`
+
+API keys: `https://autheid.com:3000/api-keys`
+
+# Production environment
+
+Server: `api.staging.autheid.com`
+
+Test API key for the test environment: `Pj+GIg2/l7ZKmicZi37+1giqKJ1WH3Vt8vSSxCuvPkKD`
+
+To connect from mobile app to the test environment please toggle license acceptance switch 6 times. On main app screen there should be text saying `Staging server` after account activation).
+
+Test accounts with auto sign (after 10 seconds):
+
+|Email|Type|
+|---|---|
+|test@example.com|Verified account|
+|test-unverified@example.com|Unverified account|
+|test@screening-eu.example.com|Verified account with EU sanctions list match|
+|test@screening-pep.example.com|Verified account with PEP list match|
+
+# API
+
+There are REST API and gRPC end-point API available. Please see demo applications for more information. Main protocol specification is gRPC schema (`rp.proto` file).
